@@ -5,6 +5,9 @@ import { UI } from './ui.js';
 import { Playlists } from './playlists.js';
 import { Player } from './player.js';
 import { Render } from './render.js';
+import { Visualizer } from './visualizer.js';
+import { ColorPicker } from './colorPicker.js';
+import { DND } from './dragAndDrop.js';
 
 // Ініціалізація додатку після завантаження DOM
 document.addEventListener('DOMContentLoaded', () => {
@@ -142,6 +145,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Запуск візуальних модулів
+    Visualizer.init();
+    ColorPicker.init();
+
+    // Авто-ресайз Drag&Drop при повороті телефону
+    window.addEventListener('resize', () => {
+     DND.initDraggableCards();
+     DND.initDroppablePlaylists();
+    });
+    
     // Завантажуємо базову категорію при старті
     Render.loadCategory('top-100');
     // TODO: Далі переносимо логіку генерації HTML-карток для треків та Drag & Drop

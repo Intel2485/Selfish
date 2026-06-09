@@ -2,6 +2,7 @@
 import { APP_CONFIG, state } from './config.js';
 import { fetchTracks } from './api.js';
 import { UI } from './ui.js';
+import { DND } from './dragAndDrop.js';
 
 export const Render = {
     catState: { query: 'top-100', cache: [], renderOffset: 0, isLoading: false },
@@ -99,6 +100,7 @@ export const Render = {
 
         activeState.renderOffset += chunk.length;
         activeState.isLoading = false;
+        DND.initDraggableCards();
         
         // TODO: Додати виклик initDraggableCards() з модуля Drag&Drop
     }
