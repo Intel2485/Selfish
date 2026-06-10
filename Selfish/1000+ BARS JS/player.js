@@ -5,41 +5,24 @@ import { UI } from './ui.js';
 import { Visualizer } from './visualizer.js';
 
 export const Player = {
-    isShuffle: false,
-    isRepeat: false,
-    animationFrameId: null,
+    isShuffle: false, isRepeat: false, animationFrameId: null,
 
     playTrack(url, title, artist, cover, id) {
         document.querySelectorAll('.track-card').forEach(card => card.classList.remove('playing-now'));
-
         let activeCard = document.querySelector(`.track-card[data-id="${id}"]`);
-        if (activeCard) {
-            activeCard.classList.add('playing-now');
-            this.updateQueue(activeCard);
-        } else {
-            const q = document.getElementById('queue-list');
-            if (q) q.innerHTML = '<p style="font-size: 12px; color: var(--text-muted);">Кінець списку</p>';
-        }
+        if (activeCard) { activeCard.classList.add('playing-now'); this.updateQueue(activeCard); } 
+        else { const q = document.getElementById('queue-list'); if (q) q.innerHTML = '<p style="font-size: 12px; color: var(--text-muted);">Кінець списку</p>'; }
 
-        state.currentTrackData = { url, title, artist, cover, id };
-        DOM.audio.src = url;
+        state.currentTrackData = { url, title, artist, cover, id }; DOM.audio.src = url;
         localStorage.setItem('lastTrackData', JSON.stringify(state.currentTrackData));
 
-        DOM.progressBar.value = 0;
-        UI.updateSliderProgress(DOM.progressBar, 0);
-        DOM.timeCurrent.innerText = '0:00';
-        DOM.timeTotal.innerText = '0:00';
-
+        DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); DOM.timeCurrent.innerText = '0:00'; DOM.timeTotal.innerText = '0:00';
         initAudioContext();
 
-        state.recentlyPlayed = state.recentlyPlayed.filter(t => t.id !== id);
-        state.recentlyPlayed.unshift({ url, title, artist, cover, id });
-        if (state.recentlyPlayed.length > 20) state.recentlyPlayed.pop();
-        localStorage.setItem('recentlyPlayed', JSON.stringify(state.recentlyPlayed));
+        state.recentlyPlayed = state.recentlyPlayed.filter(t => t.id !== id); state.recentlyPlayed.unshift({ url, title, artist, cover, id });
+        if (state.recentlyPlayed.length > 20) state.recentlyPlayed.pop(); localStorage.setItem('recentlyPlayed', JSON.stringify(state.recentlyPlayed));
         
-        document.getElementById('current-title').innerText = title;
-        document.getElementById('current-artist').innerText = artist;
-        document.getElementById('current-cover').src = cover;
+        document.getElementById('current-title').innerText = title; document.getElementById('current-artist').innerText = artist; document.getElementById('current-cover').src = cover;
         
         const rsCover = document.getElementById('rs-cover'); if (rsCover) rsCover.src = cover;
         const rsTitle = document.getElementById('rs-title'); if (rsTitle) rsTitle.innerText = title;
@@ -54,66 +37,41 @@ export const Player = {
         const vinylCover = document.getElementById('vinyl-cover'); if (vinylCover) vinylCover.src = cover;
         const fsBg = document.getElementById('fullscreen-bg'); if (fsBg) fsBg.style.backgroundImage = `url('${cover}')`;
 
-        // --- ВІДНОВЛЕНО: Перевірка стану лайку при запуску треку ---
-        const likeBtn = document.getElementById('like-btn');
-        const likeIcon = document.getElementById('like-icon');
+        const likeBtn = document.getElementById('like-btn'); const likeIcon = document.getElementById('like-icon');
         if (likeBtn && likeIcon) {
             const isLiked = state.likedTracks.some(t => t.id === id);
-            likeIcon.innerText = isLiked ? "favorite" : "favorite_border";
-            likeBtn.classList.toggle('liked', isLiked);
+            likeIcon.innerText = isLiked ? "favorite" : "favorite_border"; likeBtn.classList.toggle('liked', isLiked);
         }
 
         Visualizer.extractColorFromCover(cover);
 
-        // --- ФІКС: AbortError ---
         const playPromise = DOM.audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => console.log("Мікрозатримка перемикання:", error));
-        }
+        if (playPromise !== undefined) playPromise.catch(error => console.log("Мікрозатримка перемикання:", error));
         
-        DOM.playIcon.innerText = "pause";
-        DOM.vinylCover.classList.add('playing');
-        window.renderRecentTracks();
+        DOM.playIcon.innerText = "pause"; DOM.vinylCover.classList.add('playing'); window.renderRecentTracks();
     },
 
     playNextTrack() {
-        const currentCard = document.querySelector('.track-card.playing-now'); 
-        if (!currentCard) return;
+        const currentCard = document.querySelector('.track-card.playing-now'); if (!currentCard) return;
         const allCards = Array.from(currentCard.parentElement.querySelectorAll('.track-card'));
         if (this.isShuffle && allCards.length > 1) {
-            let rc = allCards[Math.floor(Math.random() * allCards.length)]; 
-            while (rc === currentCard) rc = allCards[Math.floor(Math.random() * allCards.length)]; 
-            rc.click(); 
-            return;
+            let rc = allCards[Math.floor(Math.random() * allCards.length)]; while (rc === currentCard) rc = allCards[Math.floor(Math.random() * allCards.length)]; rc.click(); return;
         }
-        if (currentCard.nextElementSibling && currentCard.nextElementSibling.classList.contains('track-card')) {
-            currentCard.nextElementSibling.click();
-        } else { 
-            DOM.playIcon.innerText = "play_arrow"; DOM.vinylCover.classList.remove('playing'); 
-            DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); 
-        }
+        if (currentCard.nextElementSibling && currentCard.nextElementSibling.classList.contains('track-card')) currentCard.nextElementSibling.click();
+        else { DOM.playIcon.innerText = "play_arrow"; DOM.vinylCover.classList.remove('playing'); DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); }
     },
 
     playPrevTrack() { 
-        const currentCard = document.querySelector('.track-card.playing-now'); 
-        if (currentCard && currentCard.previousElementSibling) currentCard.previousElementSibling.click(); 
+        const currentCard = document.querySelector('.track-card.playing-now'); if (currentCard && currentCard.previousElementSibling) currentCard.previousElementSibling.click(); 
     },
 
     updateQueue(activeCard) {
-        const queueList = document.getElementById('queue-list'); 
-        if (!queueList) return; 
+        const queueList = document.getElementById('queue-list'); if (!queueList) return; queueList.innerHTML = '';
+        let next = activeCard.nextElementSibling; let count = 0;
         
-        queueList.innerHTML = '';
-        let next = activeCard.nextElementSibling;
-        let count = 0;
-        
-        while (next && next.classList.contains('track-card') && count < 8) {
-            const img = next.querySelector('img').src; 
-            const title = next.querySelector('h3').innerText; 
-            const artist = next.querySelector('p').innerText; 
-            const onclickAction = next.getAttribute('onclick');
-            
-            // --- ВІДНОВЛЕНО: Значок джерела в черзі ---
+        // --- ФІКС 6: Збільшено ліміт черги до 20 ---
+        while (next && next.classList.contains('track-card') && count < 20) {
+            const img = next.querySelector('img').src; const title = next.querySelector('h3').innerText; const artist = next.querySelector('p').innerText; const onclickAction = next.getAttribute('onclick');
             const urlStr = onclickAction.match(/'([^']+)'/) ? onclickAction.match(/'([^']+)'/)[1] : '';
             const sourceLabel = urlStr.includes('audius') ? '<span style="color: #b026ff; font-weight: bold; margin-right: 5px;">Audius</span>' : '<span style="color: #ff2626; font-weight: bold; margin-right: 5px;">iTunes</span>';
             
@@ -127,8 +85,7 @@ export const Player = {
                         <div style="color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; display: flex; align-items: center;">${sourceLabel} ${artist}</div>
                     </div>
                 </div>`;
-            next = next.nextElementSibling; 
-            count++;
+            next = next.nextElementSibling; count++;
         }
         if (count === 0) queueList.innerHTML = '<p style="font-size: 12px; color: var(--text-muted);">Кінець списку</p>';
     }
