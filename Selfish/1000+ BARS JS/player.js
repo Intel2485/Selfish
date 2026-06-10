@@ -2,6 +2,7 @@
 import { DOM, state } from './config.js';
 import { initAudioContext } from './audioCore.js';
 import { UI } from './ui.js';
+import { Visualizer } from './visualizer.js'; // ДОДАНО: імпорт візуалізатора
 
 export const Player = {
     isShuffle: false,
@@ -9,10 +10,8 @@ export const Player = {
     animationFrameId: null,
 
     playTrack(url, title, artist, cover, id) {
-        // Очищаємо статус на всіх картках
         document.querySelectorAll('.track-card').forEach(card => card.classList.remove('playing-now'));
 
-        // Шукаємо активну картку
         let activeCard = document.querySelector(`.track-card[data-id="${id}"]`);
         if (activeCard) {
             activeCard.classList.add('playing-now');
@@ -22,37 +21,58 @@ export const Player = {
             if (q) q.innerHTML = '<p style="font-size: 12px; color: var(--text-muted);">Кінець списку</p>';
         }
 
-        // Оновлюємо стан
         state.currentTrackData = { url, title, artist, cover, id };
         DOM.audio.src = url;
         localStorage.setItem('lastTrackData', JSON.stringify(state.currentTrackData));
 
-        // Оновлюємо UI плеєра
         DOM.progressBar.value = 0;
         UI.updateSliderProgress(DOM.progressBar, 0);
         DOM.timeCurrent.innerText = '0:00';
         DOM.timeTotal.innerText = '0:00';
 
-        // Ініціалізуємо аудіо ядро
         initAudioContext();
 
-        // Оновлюємо історію
         state.recentlyPlayed = state.recentlyPlayed.filter(t => t.id !== id);
         state.recentlyPlayed.unshift({ url, title, artist, cover, id });
         if (state.recentlyPlayed.length > 20) state.recentlyPlayed.pop();
         localStorage.setItem('recentlyPlayed', JSON.stringify(state.recentlyPlayed));
         
-        // Візуальне оновлення (назви, обкладинки)
+        // --- ВІДНОВЛЕНО: Оновлення всіх елементів інтерфейсу ---
+        // Нижня панель
         document.getElementById('current-title').innerText = title;
         document.getElementById('current-artist').innerText = artist;
         document.getElementById('current-cover').src = cover;
         
-        // Запуск
+        // Права панель
+        const rsCover = document.getElementById('rs-cover');
+        if (rsCover) rsCover.src = cover;
+        const rsTitle = document.getElementById('rs-title');
+        if (rsTitle) rsTitle.innerText = title;
+        const rsArtistEl = document.getElementById('rs-artist');
+        if (rsArtistEl) {
+            const sourceLabel = url.includes('audius') ? '<span style="color: #b026ff; font-weight: bold; margin-right: 5px;">Audius</span>' : '<span style="color: #ff2626; font-weight: bold; margin-right: 5px;">iTunes</span>';
+            rsArtistEl.innerHTML = `${sourceLabel} ${artist}`;
+        }
+
+        // Повноекранний режим
+        const fsTitle = document.getElementById('fs-title');
+        if (fsTitle) fsTitle.innerText = title;
+        const fsArtist = document.getElementById('fs-artist');
+        if (fsArtist) fsArtist.innerText = artist;
+        const vinylCover = document.getElementById('vinyl-cover');
+        if (vinylCover) vinylCover.src = cover;
+        const fsBg = document.getElementById('fullscreen-bg');
+        if (fsBg) fsBg.style.backgroundImage = `url('${cover}')`;
+
+        // Витягуємо колір з обкладинки
+        Visualizer.extractColorFromCover(cover);
+        // --------------------------------------------------------
+
         DOM.audio.play();
         DOM.playIcon.innerText = "pause";
         DOM.vinylCover.classList.add('playing');
         
-        // TODO: Додати виклик функції renderRecentTracks() з UI модуля
+        window.renderRecentTracks();
     },
 
     playNextTrack() {
@@ -115,5 +135,4 @@ export const Player = {
     }
 };
 
-// РОБИМО ФУНКЦІЮ ГЛОБАЛЬНОЮ ДЛЯ HTML (Місток для старих onclick)
 window.playTrack = (url, title, artist, cover, id) => Player.playTrack(url, title, artist, cover, id);

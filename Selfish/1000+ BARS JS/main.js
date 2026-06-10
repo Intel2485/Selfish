@@ -1,4 +1,5 @@
 // main.js
+import { Settings } from './settings.js';
 import { APP_CONFIG, DOM, state } from './config.js';
 import { initAudioContext } from './audioCore.js';
 import { UI } from './ui.js';
@@ -12,6 +13,8 @@ import { DND } from './dragAndDrop.js';
 // Ініціалізація додатку після завантаження DOM
 document.addEventListener('DOMContentLoaded', () => {
     
+    Settings.init();
+
     // 1. Налаштування UI (Blur, Колір)
     const savedBlur = localStorage.getItem('auraGlassBlurPercent') || '33';
     UI.applyBlur(savedBlur);
@@ -154,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
      DND.initDraggableCards();
      DND.initDroppablePlaylists();
     });
-    
+
     // Завантажуємо базову категорію при старті
     Render.loadCategory('top-100');
     // TODO: Далі переносимо логіку генерації HTML-карток для треків та Drag & Drop
