@@ -16,13 +16,32 @@ export const Player = {
         state.currentTrackData = { url, title, artist, cover, id }; DOM.audio.src = url;
         localStorage.setItem('lastTrackData', JSON.stringify(state.currentTrackData));
 
-        DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); DOM.timeCurrent.innerText = '0:00'; DOM.timeTotal.innerText = '0:00';
+        if (DOM.progressBar) { DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); }
+        if (DOM.timeCurrent) DOM.timeCurrent.innerText = '0:00'; 
+        if (DOM.timeTotal) DOM.timeTotal.innerText = '0:00';
         initAudioContext();
 
-        state.recentlyPlayed = state.recentlyPlayed.filter(t => t.id !== id); state.recentlyPlayed.unshift({ url, title, artist, cover, id });
-        if (state.recentlyPlayed.length > 20) state.recentlyPlayed.pop(); localStorage.setItem('recentlyPlayed', JSON.stringify(state.recentlyPlayed));
+        // --- ФІКС: Історія треків (12 годин, мінімум 10 треків) ---
+        const now = Date.now();
+        const twelveHours = 12 * 60 * 60 * 1000;
         
-        document.getElementById('current-title').innerText = title; document.getElementById('current-artist').innerText = artist; document.getElementById('current-cover').src = cover;
+        state.recentlyPlayed = state.recentlyPlayed.filter(t => t.id !== id); 
+        state.recentlyPlayed.unshift({ url, title, artist, cover, id, timestamp: now });
+        
+        let validHistory = [];
+        for (let i = 0; i < state.recentlyPlayed.length; i++) {
+            // Залишаємо трек, якщо він в десятці останніх АБО його вік менше 12 годин
+            if (i < 10 || (now - (state.recentlyPlayed[i].timestamp || now)) < twelveHours) {
+                validHistory.push(state.recentlyPlayed[i]);
+            }
+        }
+        state.recentlyPlayed = validHistory.slice(0, 50); // Жорсткий ліміт пам'яті
+        localStorage.setItem('recentlyPlayed', JSON.stringify(state.recentlyPlayed));
+        // --------------------------------------------------------
+        
+        const currentTitle = document.getElementById('current-title'); if(currentTitle) currentTitle.innerText = title;
+        const currentArtist = document.getElementById('current-artist'); if(currentArtist) currentArtist.innerText = artist; 
+        const currentCover = document.getElementById('current-cover'); if(currentCover) currentCover.src = cover;
         
         const rsCover = document.getElementById('rs-cover'); if (rsCover) rsCover.src = cover;
         const rsTitle = document.getElementById('rs-title'); if (rsTitle) rsTitle.innerText = title;
@@ -48,7 +67,7 @@ export const Player = {
         const playPromise = DOM.audio.play();
         if (playPromise !== undefined) playPromise.catch(error => console.log("Мікрозатримка перемикання:", error));
         
-        DOM.playIcon.innerText = "pause"; DOM.vinylCover.classList.add('playing'); window.renderRecentTracks();
+        window.renderRecentTracks();
     },
 
     playNextTrack() {
@@ -58,7 +77,7 @@ export const Player = {
             let rc = allCards[Math.floor(Math.random() * allCards.length)]; while (rc === currentCard) rc = allCards[Math.floor(Math.random() * allCards.length)]; rc.click(); return;
         }
         if (currentCard.nextElementSibling && currentCard.nextElementSibling.classList.contains('track-card')) currentCard.nextElementSibling.click();
-        else { DOM.playIcon.innerText = "play_arrow"; DOM.vinylCover.classList.remove('playing'); DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); }
+        else { DOM.audio.pause(); if(DOM.progressBar) DOM.progressBar.value = 0; UI.updateSliderProgress(DOM.progressBar, 0); }
     },
 
     playPrevTrack() { 
@@ -69,7 +88,6 @@ export const Player = {
         const queueList = document.getElementById('queue-list'); if (!queueList) return; queueList.innerHTML = '';
         let next = activeCard.nextElementSibling; let count = 0;
         
-        // --- ФІКС 6: Збільшено ліміт черги до 20 ---
         while (next && next.classList.contains('track-card') && count < 20) {
             const img = next.querySelector('img').src; const title = next.querySelector('h3').innerText; const artist = next.querySelector('p').innerText; const onclickAction = next.getAttribute('onclick');
             const urlStr = onclickAction.match(/'([^']+)'/) ? onclickAction.match(/'([^']+)'/)[1] : '';

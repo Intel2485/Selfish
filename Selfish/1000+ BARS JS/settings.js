@@ -6,7 +6,7 @@ import { setEqGain, audioCtx } from './audioCore.js';
 import { Render } from './render.js';
 import { Playlists } from './playlists.js';
 import { Player } from './player.js'; 
-import { ColorPicker } from './colorPicker.js'; // ДОДАНО ІМПОРТ
+import { ColorPicker } from './colorPicker.js'; 
 
 export const Settings = {
     bgHistoryIds: JSON.parse(localStorage.getItem('auraBgHistoryIds')) || [],
@@ -89,14 +89,13 @@ export const Settings = {
             radio.addEventListener('change', (e) => {
                 state.colorMode = e.target.value; 
                 localStorage.setItem('auraColorMode', state.colorMode); 
-                ColorPicker.updateUI(state.colorMode); // ФІКС 1: Блокуємо палітру
+                ColorPicker.updateUI(state.colorMode); 
                 
                 document.querySelectorAll('input[name="color-mode"]').forEach(r => { 
                     const lbl = r.closest('.settings-radio-label'); 
                     if (lbl) lbl.classList.toggle('checked', r.checked); 
                 });
 
-                // ФІКС 2: Прибрано await для миттєвого перемикання (без затримок)
                 if (state.colorMode === 'adaptive') {
                     const currentBgId = localStorage.getItem('currentBgId');
                     if (currentBgId) { 
@@ -146,15 +145,15 @@ export const Settings = {
         document.getElementById('open-fullscreen-btn')?.addEventListener('click', () => document.getElementById('fullscreen-player').classList.remove('hidden'));
         document.getElementById('close-fullscreen-btn')?.addEventListener('click', () => document.getElementById('fullscreen-player').classList.add('hidden'));
         
-        // --- ФІКС 3: Кнопки назад/вперед для повноекранного режиму ---
         document.getElementById('fs-prev-btn')?.addEventListener('click', () => Player.playPrevTrack());
         document.getElementById('fs-next-btn')?.addEventListener('click', () => Player.playNextTrack());
         
-        const fsPlayBtn = document.getElementById('fs-play-btn'); const fsPlayIcon = document.getElementById('fs-play-icon');
+        const fsPlayBtn = document.getElementById('fs-play-btn');
         if (fsPlayBtn) {
             fsPlayBtn.addEventListener('click', () => {
-                if (DOM.audio.paused) { DOM.audio.play().catch(e => console.log(e)); fsPlayIcon.innerText = "pause"; } 
-                else { DOM.audio.pause(); fsPlayIcon.innerText = "play_arrow"; }
+                // --- ФІКС: Більше ніяких ручних змін іконок тут, все робить main.js ---
+                if (DOM.audio.paused) DOM.audio.play().catch(e => console.log(e)); 
+                else DOM.audio.pause(); 
             });
         }
     },
@@ -174,7 +173,6 @@ export const Settings = {
             radio.addEventListener('change', (e) => {
                 state.currentSource = e.target.value; localStorage.setItem('auraMusicSource', state.currentSource); syncLabels();
                 
-                // --- ФІКС 5: Перезапуск пошуку при зміні джерела ---
                 const searchSection = document.getElementById('search-section');
                 if (searchSection && searchSection.classList.contains('active-section') && Render.searchState.query) {
                     Render.performSearch(Render.searchState.query);
@@ -341,7 +339,6 @@ export const Settings = {
                 </div>`;
         });
 
-        // --- ФІКС 4: Розгортання історії треків ---
         const expandBtn = document.getElementById('expand-history-btn');
         if (expandBtn) {
             const newBtn = expandBtn.cloneNode(true);

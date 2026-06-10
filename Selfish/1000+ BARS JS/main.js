@@ -17,37 +17,70 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedBlur = localStorage.getItem('auraGlassBlurPercent') || '33';
     UI.applyBlur(savedBlur);
     UI.applyTheme(state.savedColor);
-
-    // --- ФІКС 7: Запуск ресайзерів ---
     UI.initResizers();
+
+    // --- ФІКС: Синхронізація іконок Play/Pause повсюди ---
+    const fsPlayIcon = document.getElementById('fs-play-icon');
+    DOM.audio.addEventListener('play', () => {
+        if (DOM.playIcon) DOM.playIcon.innerText = "pause";
+        if (fsPlayIcon) fsPlayIcon.innerText = "pause";
+        if (DOM.vinylCover) DOM.vinylCover.classList.add('playing');
+    });
+    DOM.audio.addEventListener('pause', () => {
+        if (DOM.playIcon) DOM.playIcon.innerText = "play_arrow";
+        if (fsPlayIcon) fsPlayIcon.innerText = "play_arrow";
+        if (DOM.vinylCover) DOM.vinylCover.classList.remove('playing');
+    });
 
     if (DOM.playBtn) {
         DOM.playBtn.addEventListener('click', () => {
             if (!DOM.audio.src) return;
             initAudioContext(); 
-            if (DOM.audio.paused) {
-                DOM.audio.play(); DOM.playIcon.innerText = "pause"; DOM.vinylCover.classList.add('playing');
-            } else {
-                DOM.audio.pause(); DOM.playIcon.innerText = "play_arrow"; DOM.vinylCover.classList.remove('playing');
-            }
+            if (DOM.audio.paused) DOM.audio.play().catch(e => console.log(e));
+            else DOM.audio.pause();
         });
     }
 
-    if (DOM.progressBar) {
-        DOM.progressBar.addEventListener('input', (e) => {
+    // --- ФІКС: Завмирання при перемотуванні та FS-Прогресбар ---
+    let isDragging = false;
+    const fsProgressBar = document.getElementById('fs-progress-bar');
+    const fsTimeCurrent = document.getElementById('fs-time-current');
+    const fsTimeTotal = document.getElementById('fs-time-total');
+
+    const setupProgressBar = (bar, timeLabel) => {
+        if (!bar) return;
+        bar.addEventListener('input', (e) => {
+            isDragging = true;
             if (DOM.audio.duration) {
                 const newTime = (DOM.audio.duration / 100) * e.target.value;
-                DOM.audio.currentTime = newTime; DOM.timeCurrent.innerText = UI.formatTime(newTime); UI.updateSliderProgress(DOM.progressBar, e.target.value);
+                if (timeLabel) timeLabel.innerText = UI.formatTime(newTime);
+                UI.updateSliderProgress(bar, e.target.value);
             }
         });
-    }
+        bar.addEventListener('change', (e) => {
+            if (DOM.audio.duration) {
+                DOM.audio.currentTime = (DOM.audio.duration / 100) * e.target.value;
+            }
+            isDragging = false;
+        });
+    };
+
+    setupProgressBar(DOM.progressBar, DOM.timeCurrent);
+    setupProgressBar(fsProgressBar, fsTimeCurrent);
 
     DOM.audio.addEventListener('timeupdate', () => {
-        if (DOM.audio.duration) {
-            DOM.timeCurrent.innerText = UI.formatTime(DOM.audio.currentTime);
-            DOM.timeTotal.innerText = UI.formatTime(DOM.audio.duration);
+        if (DOM.audio.duration && !isDragging) {
+            const currentTimeStr = UI.formatTime(DOM.audio.currentTime);
+            const totalTimeStr = UI.formatTime(DOM.audio.duration);
             const percent = (DOM.audio.currentTime / DOM.audio.duration) * 100;
-            DOM.progressBar.value = percent; UI.updateSliderProgress(DOM.progressBar, percent);
+
+            if (DOM.timeCurrent) DOM.timeCurrent.innerText = currentTimeStr;
+            if (DOM.timeTotal) DOM.timeTotal.innerText = totalTimeStr;
+            if (DOM.progressBar) { DOM.progressBar.value = percent; UI.updateSliderProgress(DOM.progressBar, percent); }
+
+            if (fsTimeCurrent) fsTimeCurrent.innerText = currentTimeStr;
+            if (fsTimeTotal) fsTimeTotal.innerText = totalTimeStr;
+            if (fsProgressBar) { fsProgressBar.value = percent; UI.updateSliderProgress(fsProgressBar, percent); }
         }
     });
 
@@ -93,5 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Visualizer.init(); ColorPicker.init();
     window.addEventListener('resize', () => { DND.initDraggableCards(); DND.initDroppablePlaylists(); });
+    
     Render.loadCategory('top-100');
+    Render.renderSearchHistoryUI(); // Малюємо історію пошуку при старті
 });

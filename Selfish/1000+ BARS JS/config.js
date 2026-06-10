@@ -6,7 +6,6 @@ export const APP_CONFIG = {
     renderChunkSize: 20
 };
 
-// Глобальний стан додатку (щоб не плодити let по всіх файлах)
 export const state = {
     currentTrackData: null,
     isEqEnabled: false,
@@ -16,10 +15,10 @@ export const state = {
     likedTracks: JSON.parse(localStorage.getItem('likedTracksData')) || [],
     recentlyPlayed: JSON.parse(localStorage.getItem('recentlyPlayed')) || [],
     customPlaylists: JSON.parse(localStorage.getItem('myPlaylists')) || [],
-    playlistsData: JSON.parse(localStorage.getItem('playlistsData')) || {}
+    playlistsData: JSON.parse(localStorage.getItem('playlistsData')) || {},
+    searchHistory: JSON.parse(localStorage.getItem('searchHistory')) || [] // ДОДАНО: Історія пошуку
 };
 
-// Елементи DOM, які використовуються найчастіше
 export const DOM = {
     audio: new Audio(),
     playBtn: document.getElementById('play-btn'),
