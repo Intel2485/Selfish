@@ -1,5 +1,5 @@
 // ui.js
-import { DOM } from './config.js';
+import { DOM, state } from './config.js'; // ДОДАНО: імпорт state для перевірки режиму
 
 export const UI = {
     formatTime(sec) {
@@ -18,7 +18,12 @@ export const UI = {
         const glow = hexToRgba(color, 0.6);
         document.documentElement.style.setProperty('--accent', color);
         document.documentElement.style.setProperty('--accent-glow', `0 0 15px ${glow}`);
-        localStorage.setItem('auraThemeColor', color);
+        
+        // --- ФІКС: Зберігаємо колір в пам'ять ТІЛЬКИ якщо режим "Постійний" ---
+        if (state.colorMode === 'fixed') {
+            localStorage.setItem('auraThemeColor', color);
+            state.savedColor = color; // Оновлюємо внутрішній стан, щоб він не загубився
+        }
     },
 
     applyBlur(percent) {
@@ -39,7 +44,6 @@ export const UI = {
         const target = document.getElementById(sectionId); if (target) target.classList.add('active-section');
     },
 
-    // --- ФІКС 7: Відновлено перетягування меж сайдбарів ---
     initResizers() {
         let isResizing = false; let currentResizer = null;
         const leftSidebar = document.getElementById('left-sidebar');

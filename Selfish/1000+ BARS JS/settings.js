@@ -26,6 +26,29 @@ export const Settings = {
         Playlists.renderPlaylists();
     },
 
+    updateProfileStats() {
+        let stats = JSON.parse(localStorage.getItem('userStats')) || {};
+        if (!stats.artists) stats.artists = {};
+        if (!stats.tracks) stats.tracks = {};
+        if (!stats.listens) stats.listens = 0;
+        
+        const genreEl = document.getElementById('stat-genre');
+        const topTrackEl = document.getElementById('stat-top-track');
+        const listensEl = document.getElementById('stat-listens'); // ВІДНОВЛЕНО
+        
+        if (listensEl) listensEl.innerText = `${stats.listens} треків`;
+        
+        if (Object.keys(stats.artists).length > 0) {
+            const topArtist = Object.keys(stats.artists).reduce((a, b) => stats.artists[a] > stats.artists[b] ? a : b);
+            if (genreEl) genreEl.innerText = topArtist;
+        }
+        
+        if (Object.keys(stats.tracks).length > 0) {
+            const topTrack = Object.keys(stats.tracks).reduce((a, b) => stats.tracks[a] > stats.tracks[b] ? a : b);
+            if (topTrackEl) topTrackEl.innerText = topTrack;
+        }
+    },
+
     initTrackActions() {
         const likeBtn = document.getElementById('like-btn');
         const likeIcon = document.getElementById('like-icon');
@@ -79,12 +102,16 @@ export const Settings = {
     },
 
     initColorModes() {
-        const radios = document.querySelectorAll('input[name="color-mode"]');
-        document.querySelectorAll('input[name="color-mode"]').forEach(r => { 
-            const lbl = r.closest('.settings-radio-label'); 
-            if (lbl) lbl.classList.toggle('checked', r.value === state.colorMode); 
+        // --- ФІКС: Примусово повідомляємо HTML, який режим зараз активний ---
+        const activeRadio = document.querySelector(`input[name="color-mode"][value="${state.colorMode}"]`);
+        if (activeRadio) activeRadio.checked = true;
+
+        document.querySelectorAll('input[name="color-mode"]').forEach(radio => { 
+            const lbl = radio.closest('.settings-radio-label'); 
+            if (lbl) lbl.classList.toggle('checked', radio.checked);
         });
 
+        const radios = document.querySelectorAll('input[name="color-mode"]');
         radios.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 state.colorMode = e.target.value; 
@@ -96,14 +123,16 @@ export const Settings = {
                     if (lbl) lbl.classList.toggle('checked', r.checked); 
                 });
 
-                if (state.colorMode === 'adaptive') {
-                    const currentBgId = localStorage.getItem('currentBgId');
-                    if (currentBgId) { 
-                        getBgFromDB(currentBgId).then(dataUrl => this.extractColorFromBg(dataUrl)); 
+                setTimeout(() => {
+                    if (state.colorMode === 'adaptive') {
+                        const currentBgId = localStorage.getItem('currentBgId');
+                        if (currentBgId) { 
+                            getBgFromDB(currentBgId).then(dataUrl => this.extractColorFromBg(dataUrl)); 
+                        }
+                    } else { 
+                        UI.applyTheme(state.savedColor); 
                     }
-                } else { 
-                    UI.applyTheme(state.savedColor); 
-                }
+                }, 10);
             });
         });
     },
@@ -137,8 +166,14 @@ export const Settings = {
                 else volumeIcon.innerText = 'volume_up';
             });
         }
+        
         const blurSlider = document.getElementById('blur-slider');
-        if (blurSlider) blurSlider.addEventListener('input', (e) => UI.applyBlur(e.target.value));
+        const savedBlur = localStorage.getItem('auraGlassBlurPercent') || '33';
+        UI.applyBlur(savedBlur); 
+        if (blurSlider) {
+            blurSlider.value = savedBlur; 
+            blurSlider.addEventListener('input', (e) => UI.applyBlur(e.target.value));
+        }
     },
 
     initFullscreen() {
@@ -151,7 +186,6 @@ export const Settings = {
         const fsPlayBtn = document.getElementById('fs-play-btn');
         if (fsPlayBtn) {
             fsPlayBtn.addEventListener('click', () => {
-                // --- ФІКС: Більше ніяких ручних змін іконок тут, все робить main.js ---
                 if (DOM.audio.paused) DOM.audio.play().catch(e => console.log(e)); 
                 else DOM.audio.pause(); 
             });
@@ -166,20 +200,23 @@ export const Settings = {
         };
         
         const currentInput = document.getElementById(`source-${state.currentSource}`);
-        if (currentInput) currentInput.checked = true; syncLabels();
+        if (currentInput) currentInput.checked = true; 
+        syncLabels();
 
         const radios = document.querySelectorAll('input[name="music-source"]');
         radios.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 state.currentSource = e.target.value; localStorage.setItem('auraMusicSource', state.currentSource); syncLabels();
                 
-                const searchSection = document.getElementById('search-section');
-                if (searchSection && searchSection.classList.contains('active-section') && Render.searchState.query) {
-                    Render.performSearch(Render.searchState.query);
-                } else {
-                    const activeCat = document.querySelector('.cat-btn.active');
-                    if (activeCat && window.loadCategory) window.loadCategory(activeCat.innerText === 'Топ-100' ? 'top-100' : activeCat.innerText.toLowerCase());
-                }
+                setTimeout(() => {
+                    const searchSection = document.getElementById('search-section');
+                    if (searchSection && searchSection.classList.contains('active-section') && Render.searchState.query) {
+                        Render.performSearch(Render.searchState.query);
+                    } else {
+                        const activeCat = document.querySelector('.cat-btn.active');
+                        if (activeCat && window.loadCategory) window.loadCategory(activeCat.innerText === 'Топ-100' ? 'top-100' : activeCat.innerText.toLowerCase());
+                    }
+                }, 10);
             });
         });
     },
@@ -231,8 +268,18 @@ export const Settings = {
 
     initProfile() {
         const profileModal = document.getElementById('profile-modal');
-        document.getElementById('user-profile-btn')?.addEventListener('click', () => profileModal.classList.remove('hidden'));
+        document.getElementById('user-profile-btn')?.addEventListener('click', () => {
+            this.updateProfileStats(); 
+            profileModal.classList.remove('hidden');
+        });
         document.getElementById('close-profile-btn')?.addEventListener('click', () => profileModal.classList.add('hidden'));
+
+        // ВІДНОВЛЕНО: Ім'я користувача
+        const nameInput = document.getElementById('profile-name-input');
+        if (nameInput) { 
+            nameInput.value = localStorage.getItem('userName') || "Слухач"; 
+            nameInput.addEventListener('input', e => localStorage.setItem('userName', e.target.value)); 
+        }
 
         const avatarUpload = document.getElementById('avatar-upload');
         if (avatarUpload) {
@@ -309,6 +356,16 @@ export const Settings = {
 
     initPlaylistModals() {
         const plModal = document.getElementById('playlist-modal');
+        
+        // ВІДНОВЛЕНО: Закриття будь-якої модалки по кліку на темний фон
+        document.querySelectorAll('.fullscreen-overlay').forEach(modal => {
+            modal.addEventListener('click', function (e) {
+                if (e.target === this && this.id !== 'fullscreen-player') {
+                    this.classList.add('hidden');
+                }
+            });
+        });
+
         document.getElementById('create-playlist-btn')?.addEventListener('click', () => {
             document.getElementById('pl-modal-title').innerText = 'Створити плейлист';
             document.getElementById('pl-create-block').style.display = 'block'; document.getElementById('pl-select-block').style.display = 'none'; document.getElementById('pl-modal-confirm').style.display = 'block';
@@ -359,6 +416,8 @@ export const Settings = {
 };
 
 window.renderRecentTracks = () => Settings.renderRecentTracks();
+window.updateProfileStats = () => Settings.updateProfileStats(); 
+
 window.deleteBg = async function (id) {
     await deleteBgFromDB(id); Settings.bgHistoryIds = Settings.bgHistoryIds.filter(i => i !== id); localStorage.setItem('auraBgHistoryIds', JSON.stringify(Settings.bgHistoryIds));
     if (localStorage.getItem('currentBgId') === id) Settings.applyBackground(null); Settings.renderBgHistory();

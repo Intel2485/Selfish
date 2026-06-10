@@ -1,7 +1,7 @@
 // playlists.js
 import { state } from './config.js';
 import { UI } from './ui.js';
-import { DND } from './dragAndDrop.js'; // ДОДАНО: Для Drag&Drop
+import { DND } from './dragAndDrop.js'; 
 
 export const Playlists = {
     saveNew(name) {
@@ -11,7 +11,7 @@ export const Playlists = {
         state.customPlaylists.push(name);
         state.playlistsData[name] = [];
         this._syncStorage();
-        this.renderPlaylists(); // ДОДАНО: Одразу малюємо в меню
+        this.renderPlaylists(); 
         return { success: true, msg: `Плейлист "${name}" створено!` };
     },
 
@@ -21,7 +21,7 @@ export const Playlists = {
             state.customPlaylists.splice(index, 1);
             delete state.playlistsData[plName];
             this._syncStorage();
-            this.renderPlaylists(); // ДОДАНО: Оновлюємо меню
+            this.renderPlaylists(); 
             return true;
         }
         return false;
@@ -30,7 +30,9 @@ export const Playlists = {
     toggleLike(trackData) {
         const index = state.likedTracks.findIndex(t => t.id === trackData.id);
         const isLiked = index === -1;
-        if (isLiked) state.likedTracks.push(trackData);
+        
+        // --- ФІКС: Нові треки додаються на початок списку (unshift) ---
+        if (isLiked) state.likedTracks.unshift(trackData);
         else state.likedTracks.splice(index, 1);
         
         localStorage.setItem('likedTracksData', JSON.stringify(state.likedTracks));
@@ -51,7 +53,6 @@ export const Playlists = {
         localStorage.setItem('playlistsData', JSON.stringify(state.playlistsData));
     },
 
-    // --- ВІДНОВЛЕНО: Функції для малювання меню та карток ---
     renderPlaylists() {
         const playlistsContainer = document.getElementById('user-playlists-list');
         if (!playlistsContainer) return;

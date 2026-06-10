@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.applyTheme(state.savedColor);
     UI.initResizers();
 
-    // --- ФІКС: Синхронізація іконок Play/Pause повсюди ---
     const fsPlayIcon = document.getElementById('fs-play-icon');
     DOM.audio.addEventListener('play', () => {
         if (DOM.playIcon) DOM.playIcon.innerText = "pause";
@@ -41,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- ФІКС: Завмирання при перемотуванні та FS-Прогресбар ---
     let isDragging = false;
     const fsProgressBar = document.getElementById('fs-progress-bar');
     const fsTimeCurrent = document.getElementById('fs-time-current');
@@ -60,6 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
         bar.addEventListener('change', (e) => {
             if (DOM.audio.duration) {
                 DOM.audio.currentTime = (DOM.audio.duration / 100) * e.target.value;
+                // Одразу перезаписуємо нову позицію при ручному перемотуванні
+                localStorage.setItem('auraLastPosition', DOM.audio.currentTime);
             }
             isDragging = false;
         });
@@ -81,6 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fsTimeCurrent) fsTimeCurrent.innerText = currentTimeStr;
             if (fsTimeTotal) fsTimeTotal.innerText = totalTimeStr;
             if (fsProgressBar) { fsProgressBar.value = percent; UI.updateSliderProgress(fsProgressBar, percent); }
+
+            // --- ФІКС: Безперервно запам'ятовуємо прогрес треку у секундах ---
+            localStorage.setItem('auraLastPosition', DOM.audio.currentTime);
         }
     });
 
@@ -97,8 +100,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (nextBtn) nextBtn.addEventListener('click', () => Player.playNextTrack());
     if (prevBtn) prevBtn.addEventListener('click', () => Player.playPrevTrack());
-    if (shuffleBtn) shuffleBtn.addEventListener('click', function() { Player.isShuffle = !Player.isShuffle; this.classList.toggle('active-mode', Player.isShuffle); });
-    if (repeatBtn) repeatBtn.addEventListener('click', function() { Player.isRepeat = !Player.isRepeat; this.classList.toggle('active-mode', Player.isRepeat); });
+    
+    if (shuffleBtn) {
+        shuffleBtn.addEventListener('click', function() { 
+            Player.isShuffle = !Player.isShuffle; 
+            this.classList.toggle('active-mode', Player.isShuffle); 
+            const currentCard = document.querySelector('.track-card.playing-now');
+            if (currentCard) Player.updateQueue(currentCard);
+        });
+    }
+
+    if (repeatBtn) {
+        repeatBtn.addEventListener('click', function() { 
+            Player.isRepeat = !Player.isRepeat; 
+            this.classList.toggle('active-mode', Player.isRepeat); 
+        });
+    }
 
     DOM.audio.addEventListener('ended', () => {
         if (Player.isRepeat && DOM.audio.src) { DOM.audio.currentTime = 0; DOM.audio.play(); } else Player.playNextTrack();
@@ -124,9 +141,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- ВІДНОВЛЕНО: 60 FPS Плавний прогрес-бар з оригінального коду ---
+    let animationFrameId;
+    function smoothProgressBar() {
+        if (!DOM.audio.paused && DOM.audio.duration && !isDragging) {
+            const percent = (DOM.audio.currentTime / DOM.audio.duration) * 100;
+            const currentTimeStr = UI.formatTime(DOM.audio.currentTime);
+            
+            if (DOM.timeCurrent) DOM.timeCurrent.innerText = currentTimeStr;
+            if (DOM.progressBar) { DOM.progressBar.value = percent; UI.updateSliderProgress(DOM.progressBar, percent); }
+            
+            if (fsTimeCurrent) fsTimeCurrent.innerText = currentTimeStr;
+            if (fsProgressBar) { fsProgressBar.value = percent; UI.updateSliderProgress(fsProgressBar, percent); }
+            
+            localStorage.setItem('auraLastPosition', DOM.audio.currentTime);
+        }
+        animationFrameId = requestAnimationFrame(smoothProgressBar);
+    }
+
+    DOM.audio.addEventListener('play', () => { 
+        cancelAnimationFrame(animationFrameId); 
+        animationFrameId = requestAnimationFrame(smoothProgressBar); 
+    });
+    DOM.audio.addEventListener('pause', () => cancelAnimationFrame(animationFrameId));
+    
+    // timeupdate залишаємо тільки для оновлення загальної тривалості
+    DOM.audio.addEventListener('timeupdate', () => {
+        if (DOM.audio.duration && DOM.timeTotal) DOM.timeTotal.innerText = UI.formatTime(DOM.audio.duration);
+        if (DOM.audio.duration && fsTimeTotal) fsTimeTotal.innerText = UI.formatTime(DOM.audio.duration);
+    });
+    
     Visualizer.init(); ColorPicker.init();
     window.addEventListener('resize', () => { DND.initDraggableCards(); DND.initDroppablePlaylists(); });
     
+    // Завантажуємо базову категорію
     Render.loadCategory('top-100');
-    Render.renderSearchHistoryUI(); // Малюємо історію пошуку при старті
+    Render.renderSearchHistoryUI(); 
+
+    // --- ФІКС: Відновлюємо останній прослуханий трек та позицію часу після завантаження категорій ---
+    setTimeout(() => {
+        Player.restoreLastSession();
+    }, 300);
 });
