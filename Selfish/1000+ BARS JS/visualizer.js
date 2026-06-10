@@ -8,6 +8,7 @@ export const Visualizer = {
     fsVisualizer: document.getElementById('fs-visualizer'),
     fsPlayer: document.getElementById('fullscreen-player'),
     fsCoverImg: document.getElementById('vinyl-cover'),
+    hideUiTimeout: null, // ДОДАНО: Таймер зникнення інтерфейсу
 
     init() {
         if (this.fsVisualizer) {
@@ -29,7 +30,24 @@ export const Visualizer = {
             });
         }
 
-        // Запуск нескінченного циклу малювання
+        // --- ВІДНОВЛЕНО: Логіка зникнення інтерфейсу ---
+        const resetUiTimer = () => {
+            this.fsPlayer.classList.remove('fs-hide-ui');
+            clearTimeout(this.hideUiTimeout);
+            this.hideUiTimeout = setTimeout(() => {
+                if (!DOM.audio.paused) this.fsPlayer.classList.add('fs-hide-ui');
+            }, 3000);
+        };
+
+        this.fsPlayer.addEventListener('mousemove', resetUiTimer);
+        this.fsPlayer.addEventListener('click', resetUiTimer);
+        DOM.audio.addEventListener('pause', () => {
+            this.fsPlayer.classList.remove('fs-hide-ui');
+            clearTimeout(this.hideUiTimeout);
+        });
+        DOM.audio.addEventListener('play', resetUiTimer);
+        // -----------------------------------------------
+
         this.drawVisualizer();
     },
 
@@ -40,7 +58,6 @@ export const Visualizer = {
         }
     },
 
-    // Магія добування кольору з картинки
     extractColorFromCover(coverUrl) {
         this.fsCoverColor = state.savedColor || '#b026ff';
         document.documentElement.style.setProperty('--fs-accent', this.fsCoverColor);
@@ -73,14 +90,11 @@ export const Visualizer = {
                     this.fsCoverColor = rgbToHex(r, g, b);
                 }
                 document.documentElement.style.setProperty('--fs-accent', this.fsCoverColor);
-            } catch (e) {
-                console.log("CORS/Колір помилка:", e);
-            }
+            } catch (e) {}
         };
         img.src = coverUrl;
     },
 
-    // Малювання стовпчиків
     drawVisualizer() {
         requestAnimationFrame(() => this.drawVisualizer());
         if (!analyser || !this.visCtx || this.fsPlayer.classList.contains('hidden') || DOM.audio.paused) return;
@@ -90,11 +104,8 @@ export const Visualizer = {
         analyser.getByteFrequencyData(dataArray);
 
         this.visCtx.clearRect(0, 0, this.fsVisualizer.width, this.fsVisualizer.height);
-
-        const width = this.fsVisualizer.width;
-        const height = this.fsVisualizer.height;
-        const centerY = height / 2;
-        const barWidth = (width / bufferLength) * 1.8;
+        const width = this.fsVisualizer.width; const height = this.fsVisualizer.height;
+        const centerY = height / 2; const barWidth = (width / bufferLength) * 1.8;
         let x = 0;
 
         for (let i = 0; i < bufferLength; i++) {
@@ -102,7 +113,6 @@ export const Visualizer = {
             const barHeight = val * (height / 2) * 0.85;
 
             this.visCtx.fillStyle = this.fsCoverColor || state.savedColor || '#b026ff';
-
             this.visCtx.globalAlpha = 0.8;
             this.visCtx.beginPath();
             this.visCtx.roundRect(x, centerY - barHeight, barWidth, barHeight, [3, 3, 0, 0]);

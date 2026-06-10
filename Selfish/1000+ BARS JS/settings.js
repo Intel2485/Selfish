@@ -1,13 +1,14 @@
 // settings.js
 import { state, DOM } from './config.js';
 import { UI } from './ui.js';
-import { saveBgToDB, getBgFromDB, deleteBgFromDB } from './db.js'; // ДОДАНО deleteBgFromDB
+import { saveBgToDB, getBgFromDB, deleteBgFromDB } from './db.js';
 import { setEqGain, audioCtx } from './audioCore.js';
 import { Render } from './render.js';
 import { Playlists } from './playlists.js';
 
 export const Settings = {
     bgHistoryIds: JSON.parse(localStorage.getItem('auraBgHistoryIds')) || [],
+    renderCounter: 0, // Фікс дублювання фонів
 
     init() {
         this.initVolumeAndBlur();
@@ -16,17 +17,71 @@ export const Settings = {
         this.initEQ();
         this.initProfile();
         this.initBackgrounds();
-        this.initColorModes(); // ДОДАНО: Ініціалізація кольорів
+        this.initColorModes();
         this.initPlaylistModals();
+        this.initTrackActions(); // ДОДАНО: Активація кнопок плеєра
         this.renderRecentTracks();
         
-        Playlists.renderPlaylists(); // ДОДАНО: Відмальовуємо меню плейлистів при старті
+        Playlists.renderPlaylists();
     },
 
-    // --- ВІДНОВЛЕНО: Логіка перемикання режимів кольору ---
+    // --- ВІДНОВЛЕНО: Логіка кнопок "Вподобати" та "В плейлист" ---
+    initTrackActions() {
+        const likeBtn = document.getElementById('like-btn');
+        const likeIcon = document.getElementById('like-icon');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', () => {
+                if (!state.currentTrackData) return;
+                const isLiked = Playlists.toggleLike(state.currentTrackData);
+                likeIcon.innerText = isLiked ? "favorite" : "favorite_border";
+                likeBtn.classList.toggle('liked', isLiked);
+                
+                if (document.querySelector('#liked-section h1')?.innerText === 'Вподобані треки' && document.getElementById('liked-section').classList.contains('active-section')) {
+                    Playlists.openPlaylistSection('Вподобані треки', state.likedTracks);
+                }
+            });
+        }
+
+        const addBtn = document.getElementById('add-to-playlist-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                if (!state.currentTrackData) return alert("Спочатку увімкніть трек!");
+                if (state.customPlaylists.length === 0) {
+                    alert("У вас ще немає плейлистів. Створіть один!");
+                    document.getElementById('create-playlist-btn')?.click();
+                    return;
+                }
+                
+                document.getElementById('pl-modal-title').innerText = 'Оберіть плейлист';
+                document.getElementById('pl-create-block').style.display = 'none';
+                document.getElementById('pl-select-block').style.display = 'block';
+                document.getElementById('pl-modal-confirm').style.display = 'none';
+                
+                const selectBlock = document.getElementById('pl-select-block');
+                selectBlock.innerHTML = '';
+                state.customPlaylists.forEach(pl => {
+                    const btn = document.createElement('button');
+                    btn.className = 'cat-btn';
+                    btn.style = 'width: 100%; margin-bottom: 8px; text-align: left; display: flex; align-items: center; gap: 10px;';
+                    btn.innerHTML = `<span class="material-symbols-rounded">queue_music</span> ${pl}`;
+                    btn.onclick = () => {
+                        const added = Playlists.addToSpecific(pl, state.currentTrackData);
+                        if (added) {
+                            UI.showToast(`Додано до "${pl}" 🎵`);
+                            document.getElementById('playlist-modal').classList.add('hidden');
+                        } else {
+                            alert("Цей трек вже є у плейлисті.");
+                        }
+                    };
+                    selectBlock.appendChild(btn);
+                });
+                document.getElementById('playlist-modal').classList.remove('hidden');
+            });
+        }
+    },
+
     initColorModes() {
         const radios = document.querySelectorAll('input[name="color-mode"]');
-        
         document.querySelectorAll('input[name="color-mode"]').forEach(r => { 
             const lbl = r.closest('.settings-radio-label'); 
             if (lbl) lbl.classList.toggle('checked', r.value === state.colorMode); 
@@ -69,20 +124,15 @@ export const Settings = {
         };
         img.src = dataUrl;
     },
-    // ------------------------------------------------------
 
     initVolumeAndBlur() {
         const volumeBar = document.getElementById('volume-bar');
         const volumeIcon = document.getElementById('volume-icon');
         if (volumeBar) {
             const savedVol = localStorage.getItem('auraVolume') || 100;
-            volumeBar.value = savedVol;
-            DOM.audio.volume = savedVol / 100;
-            UI.updateSliderProgress(volumeBar, savedVol);
-
+            volumeBar.value = savedVol; DOM.audio.volume = savedVol / 100; UI.updateSliderProgress(volumeBar, savedVol);
             volumeBar.addEventListener('input', (e) => {
-                DOM.audio.volume = e.target.value / 100;
-                UI.updateSliderProgress(volumeBar, e.target.value);
+                DOM.audio.volume = e.target.value / 100; UI.updateSliderProgress(volumeBar, e.target.value);
                 localStorage.setItem('auraVolume', e.target.value);
                 if (e.target.value == 0) volumeIcon.innerText = 'volume_off';
                 else if (e.target.value <= 30) volumeIcon.innerText = 'volume_mute';
@@ -90,27 +140,20 @@ export const Settings = {
                 else volumeIcon.innerText = 'volume_up';
             });
         }
-
         const blurSlider = document.getElementById('blur-slider');
-        if (blurSlider) {
-            blurSlider.addEventListener('input', (e) => UI.applyBlur(e.target.value));
-        }
+        if (blurSlider) blurSlider.addEventListener('input', (e) => UI.applyBlur(e.target.value));
     },
 
     initFullscreen() {
-        document.getElementById('open-fullscreen-btn')?.addEventListener('click', () => {
-            document.getElementById('fullscreen-player').classList.remove('hidden');
-        });
-        document.getElementById('close-fullscreen-btn')?.addEventListener('click', () => {
-            document.getElementById('fullscreen-player').classList.add('hidden');
-        });
+        document.getElementById('open-fullscreen-btn')?.addEventListener('click', () => document.getElementById('fullscreen-player').classList.remove('hidden'));
+        document.getElementById('close-fullscreen-btn')?.addEventListener('click', () => document.getElementById('fullscreen-player').classList.add('hidden'));
         
         const fsPlayBtn = document.getElementById('fs-play-btn');
         const fsPlayIcon = document.getElementById('fs-play-icon');
         if (fsPlayBtn) {
             fsPlayBtn.addEventListener('click', () => {
                 if (DOM.audio.paused) {
-                    DOM.audio.play();
+                    DOM.audio.play().catch(e => console.log(e)); // ФІКС AbortError
                     fsPlayIcon.innerText = "pause";
                 } else {
                     DOM.audio.pause();
@@ -120,27 +163,63 @@ export const Settings = {
         }
     },
 
+    // --- ВІДНОВЛЕНО: Підсвічування джерела ---
     initSource() {
+        const syncLabels = () => {
+            document.querySelectorAll('input[name="music-source"]').forEach(r => { 
+                const lbl = r.closest('.settings-radio-label'); 
+                if (lbl) lbl.classList.toggle('checked', r.checked); 
+            });
+        };
+        
+        const currentInput = document.getElementById(`source-${state.currentSource}`);
+        if (currentInput) currentInput.checked = true;
+        syncLabels();
+
         const radios = document.querySelectorAll('input[name="music-source"]');
         radios.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 state.currentSource = e.target.value;
                 localStorage.setItem('auraMusicSource', state.currentSource);
-                
-                document.querySelectorAll('input[name="music-source"]').forEach(r => { 
-                    const lbl = r.closest('.settings-radio-label'); 
-                    if (lbl) lbl.classList.toggle('checked', r.checked); 
-                });
+                syncLabels();
                 
                 const activeCat = document.querySelector('.cat-btn.active');
-                if (activeCat) Render.loadCategory(activeCat.innerText === 'Топ-100' ? 'top-100' : activeCat.innerText.toLowerCase());
+                if (activeCat && window.loadCategory) window.loadCategory(activeCat.innerText === 'Топ-100' ? 'top-100' : activeCat.innerText.toLowerCase());
             });
         });
     },
 
+    // --- ВІДНОВЛЕНО: Пресети еквалайзера ---
     initEQ() {
         const eqToggle = document.getElementById('eq-toggle');
         const eqSliders = document.querySelectorAll('.eq-band');
+        const eqSelect = document.getElementById('eq-presets');
+        
+        const basePresets = { 'flat': [0, 0, 0, 0, 0], 'bass': [6, 4, 0, -2, -2], 'rock': [5, -2, -3, 4, 6], 'vocal': [-4, 2, 6, 4, -2] };
+        let customEqPresets = JSON.parse(localStorage.getItem('customEqPresets')) || {};
+        
+        const renderEqOptions = (selectedValue = 'flat') => {
+            if (!eqSelect) return;
+            eqSelect.innerHTML = `<option value="flat">Оригінал (Flat)</option><option value="bass">Bass Boost</option><option value="rock">Rock</option><option value="vocal">Vocal Focus</option><option disabled>──────────</option>`;
+            Object.keys(customEqPresets).forEach(name => { eqSelect.innerHTML += `<option value="custom_${name}">Власний: ${name}</option>`; });
+            eqSelect.innerHTML += `<option value="manual" style="display:none;">Ручне налаштування</option>`;
+            setTimeout(() => { eqSelect.value = selectedValue; }, 10);
+        };
+        renderEqOptions();
+
+        if (eqSelect) {
+            eqSelect.addEventListener('change', (e) => {
+                const mode = e.target.value;
+                let vals = [0,0,0,0,0];
+                if (basePresets[mode]) vals = basePresets[mode];
+                else if (mode.startsWith('custom_')) vals = customEqPresets[mode.replace('custom_', '')] || [0,0,0,0,0];
+                
+                eqSliders.forEach((slider, index) => {
+                    slider.value = vals[index];
+                    if (state.isEqEnabled) setEqGain(index, vals[index]);
+                });
+            });
+        }
         
         if (eqToggle) {
             eqToggle.addEventListener('change', (e) => {
@@ -150,16 +229,26 @@ export const Settings = {
                 document.getElementById('eq-status-text').innerText = state.isEqEnabled ? 'Увімкнено' : 'Вимкнено';
                 document.getElementById('eq-status-text').style.color = state.isEqEnabled ? 'var(--accent)' : 'var(--text-muted)';
                 
-                if (audioCtx) {
-                    eqSliders.forEach((slider, i) => setEqGain(i, state.isEqEnabled ? parseFloat(slider.value) : 0));
-                }
+                if (audioCtx) eqSliders.forEach((slider, i) => setEqGain(i, state.isEqEnabled ? parseFloat(slider.value) : 0));
             });
         }
 
         eqSliders.forEach(slider => {
             slider.addEventListener('input', (e) => {
+                if (eqSelect) eqSelect.value = 'manual';
                 setEqGain(e.target.dataset.index, parseFloat(e.target.value));
             });
+        });
+
+        document.getElementById('save-eq-btn')?.addEventListener('click', () => {
+            const name = document.getElementById('custom-eq-name').value.trim();
+            if (!name) return alert('Введіть назву!');
+            const vals = Array.from(eqSliders).map(s => parseFloat(s.value));
+            customEqPresets[name] = vals;
+            localStorage.setItem('customEqPresets', JSON.stringify(customEqPresets));
+            renderEqOptions(`custom_${name}`);
+            document.getElementById('custom-eq-name').value = '';
+            UI.showToast(`Пресет "${name}" збережено!`);
         });
 
         document.getElementById('open-eq-btn')?.addEventListener('click', () => document.getElementById('eq-modal').classList.remove('hidden'));
@@ -176,28 +265,20 @@ export const Settings = {
             avatarUpload.addEventListener('change', function () {
                 if (this.files[0]) { 
                     const reader = new FileReader(); 
-                    reader.onload = e => { 
-                        localStorage.setItem('userAvatar', e.target.result); 
-                        Settings.setAvatar(e.target.result);
-                    }; 
+                    reader.onload = e => { localStorage.setItem('userAvatar', e.target.result); Settings.setAvatar(e.target.result); }; 
                     reader.readAsDataURL(this.files[0]); 
                 }
             });
         }
-        
         document.querySelector('#profile-modal .color-picker-wrapper')?.addEventListener('click', () => avatarUpload?.click());
-        
-        const savedAvatar = localStorage.getItem('userAvatar');
-        if (savedAvatar) this.setAvatar(savedAvatar);
+        if (localStorage.getItem('userAvatar')) this.setAvatar(localStorage.getItem('userAvatar'));
     },
 
     setAvatar(url) {
-        const modalImg = document.getElementById('modal-avatar-img');
-        const miniImg = document.getElementById('user-avatar-mini');
+        const modalImg = document.getElementById('modal-avatar-img'); const miniImg = document.getElementById('user-avatar-mini');
         if(modalImg) { modalImg.src = url; modalImg.style.display = 'block'; }
         if(miniImg) { miniImg.src = url; miniImg.style.display = 'block'; }
-        document.getElementById('modal-avatar-placeholder').style.display = 'none'; 
-        document.getElementById('user-icon-mini').style.display = 'none';
+        document.getElementById('modal-avatar-placeholder').style.display = 'none'; document.getElementById('user-icon-mini').style.display = 'none';
     },
 
     initBackgrounds() {
@@ -219,21 +300,15 @@ export const Settings = {
         }
 
         document.getElementById('bg-reset')?.addEventListener('click', () => this.applyBackground(null));
-
         const currentBgId = localStorage.getItem('currentBgId');
-        if (currentBgId) {
-            getBgFromDB(currentBgId).then(data => this.applyBackground(data, currentBgId));
-        }
-        
-        this.renderBgHistory(); // Оновлюємо історію
+        if (currentBgId) getBgFromDB(currentBgId).then(data => this.applyBackground(data, currentBgId));
+        this.renderBgHistory();
     },
 
     applyBackground(dataUrl, id = null) {
         if (dataUrl) {
-            document.body.style.backgroundImage = `url(${dataUrl})`; 
-            document.body.classList.add('has-custom-bg');
+            document.body.style.backgroundImage = `url(${dataUrl})`; document.body.classList.add('has-custom-bg');
             if (state.colorMode === 'adaptive') this.extractColorFromBg(dataUrl);
-            
             if (id) {
                 localStorage.setItem('currentBgId', id); 
                 this.bgHistoryIds = this.bgHistoryIds.filter(i => i !== id); 
@@ -243,14 +318,12 @@ export const Settings = {
                 this.renderBgHistory();
             }
         } else {
-            document.body.style.backgroundImage = ''; 
-            document.body.classList.remove('has-custom-bg'); 
-            localStorage.removeItem('currentBgId');
+            document.body.style.backgroundImage = ''; document.body.classList.remove('has-custom-bg'); localStorage.removeItem('currentBgId');
             if (state.colorMode === 'adaptive') UI.applyTheme(state.savedColor);
         }
     },
 
-    // --- ВІДНОВЛЕНО: Відмальовування історії фонів ---
+    // --- ФІКС: Очищення дублікатів фонів ---
     async renderBgHistory() {
         const list = document.getElementById('bg-history-list');
         if (!list) return;
@@ -260,10 +333,24 @@ export const Settings = {
             return;
         }
 
-        list.innerHTML = '';
-        for (let id of this.bgHistoryIds) {
+        const currentRender = ++this.renderCounter;
+        const seenDataUrls = new Set();
+        const uniqueIds = [];
+        const fragment = document.createDocumentFragment();
+
+        const idsToRender = [...this.bgHistoryIds];
+
+        for (let id of idsToRender) {
             const dataUrl = await getBgFromDB(id);
             if (!dataUrl) continue;
+
+            if (seenDataUrls.has(dataUrl)) {
+                await deleteBgFromDB(id);
+                continue;
+            }
+
+            seenDataUrls.add(dataUrl);
+            uniqueIds.push(id);
 
             const item = document.createElement('div');
             item.style = "position: relative; display: inline-block; margin-right: 10px; flex-shrink: 0; margin-top: 5px;";
@@ -274,7 +361,17 @@ export const Settings = {
             item.querySelector('img').onclick = () => this.applyBackground(dataUrl, id);
             item.querySelector('.delete-bg-btn').onclick = (e) => { e.stopPropagation(); window.deleteBg(id); };
 
-            list.appendChild(item);
+            fragment.appendChild(item);
+        }
+
+        if (currentRender !== this.renderCounter) return;
+
+        list.innerHTML = '';
+        list.appendChild(fragment);
+
+        if (this.bgHistoryIds.length !== uniqueIds.length) {
+            this.bgHistoryIds = uniqueIds;
+            localStorage.setItem('auraBgHistoryIds', JSON.stringify(this.bgHistoryIds));
         }
     },
 
@@ -328,7 +425,6 @@ export const Settings = {
 
 window.renderRecentTracks = () => Settings.renderRecentTracks();
 
-// ДОДАНО: Глобальна функція для видалення фону з історії
 window.deleteBg = async function (id) {
     await deleteBgFromDB(id); 
     Settings.bgHistoryIds = Settings.bgHistoryIds.filter(i => i !== id); 
