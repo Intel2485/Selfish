@@ -284,9 +284,22 @@ export const Settings = {
         const avatarUpload = document.getElementById('avatar-upload');
         if (avatarUpload) {
             avatarUpload.addEventListener('change', function () {
-                if (this.files[0]) { const reader = new FileReader(); reader.onload = e => { localStorage.setItem('userAvatar', e.target.result); Settings.setAvatar(e.target.result); }; reader.readAsDataURL(this.files[0]); }
+                if (this.files[0]) { 
+                    const reader = new FileReader(); 
+                    reader.onload = e => { 
+                        try {
+                            localStorage.setItem('userAvatar', e.target.result); 
+                            Settings.setAvatar(e.target.result); 
+                        } catch (err) {
+                            UI.showToast('Зображення завелике для збереження!');
+                            Settings.setAvatar(e.target.result); // Відобразиться хоча б до перезавантаження сторінки
+                        }
+                    }; 
+                    reader.readAsDataURL(this.files[0]); 
+                }
             });
         }
+        
         document.querySelector('#profile-modal .color-picker-wrapper')?.addEventListener('click', () => avatarUpload?.click());
         if (localStorage.getItem('userAvatar')) this.setAvatar(localStorage.getItem('userAvatar'));
     },
